@@ -519,7 +519,19 @@ function withTimeout(p,ms){return new Promise(function(res,rej){
  p.then(function(v){clearTimeout(t);res(v)},function(e){clearTimeout(t);rej(e)});
 })}
 var CACHEKEY='xz_cache_v1';
-function cacheGet(){try{var a=JSON.parse(localStorage.getItem(CACHEKEY)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}}
+function cacheGet(){
+ try{
+  var a=JSON.parse(localStorage.getItem(CACHEKEY)||'[]');
+  if(!Array.isArray(a))return[];
+  var s={},m=myIdsGet(),i;for(i=0;i<m.length;i++)s[m[i]]=1;
+  /* 缓存里可能存着上一版记的归属标签，一律按「这台写没写过」重算，别处写的不混进「我的」 */
+  for(i=0;i<a.length;i++){
+   var w=a[i],mine=!!s[w.dk]||(/^local_/.test(String(w.dk))&&w.owner===MYKEY);
+   w.owner=mine?MYKEY:'other';if(mine)w.canDel=true;
+  }
+  return a;
+ }catch(e){return []}
+}
 function cacheSet(list){
  var slim=list.map(function(w){return {dk:w.dk,no:w.no,text:w.text,by:w.by,img:w.img||'',
    t:w.t,owner:w.owner,canDel:w.canDel,fixed:w.fixed?1:0}});
@@ -1641,7 +1653,14 @@ admin.addEventListener('pointerdown',function(e){e.stopPropagation()});
 var minePanel=document.getElementById('minePanel'),mineList=document.getElementById('mineList');
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){
  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-function mineIdx(){var a=[],i;for(i=0;i<wishes.length;i++)if(wishes[i].owner===MYKEY)a.push(i);return a}
+function mineIdx(){
+ var a=[],i,s={},m=myIdsGet();for(i=0;i<m.length;i++)s[m[i]]=1;
+ for(i=0;i<wishes.length;i++){
+  var w=wishes[i];
+  if(s[w.dk]||(/^local_/.test(String(w.dk))&&w.owner===MYKEY))a.push(i);
+ }
+ return a;
+}
 /* 实时判定：主人浏览器全可删；别人那边只能删自己在这台写过的 */
 function canDelete(w){return isOwner()||w.canDel===true}
 function renderMine(){
