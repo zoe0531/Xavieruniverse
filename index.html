@@ -610,7 +610,7 @@ function fromRows(rows){
  var a=myIdsGet(),set={},i;
  for(i=0;i<a.length;i++)set[a[i]]=1;
  return rows.map(function(r){
-  var q=splitText(r.text),mine=(q&&q.own)||!!set[r.id];
+  var q=splitText(r.text),mine=!!set[r.id];   /* 我的：只认这台设备写过的，别处写的不混进来 */
   return {dk:r.id,no:toNo(q?q.no:r.id),text:q?q.text:(r.text||''),by:r.name||'',img:r.photo||'',
     t:r.created_at?new Date(r.created_at).getTime():Date.now(),
     owner:mine?MYKEY:'other',fixed:!!q,
@@ -1136,9 +1136,17 @@ function commitList(list){
   wishes=normalizeNos(merged.slice(-CONFIG.capacity));
   lastSig=sigOf(wishes);pickBatch();updateCount();return;
  }
- /* 只要曾经成功读到过星，云端被动返回空一律不吞掉本地星海。
-    真·全部删光只可能来自管理面板，那时 lastKnownN 已被置 0，这里自然放行。 */
- if(!list.length&&lastKnownN>0){updateCount();scheduleRetry();return}
+ /* 云端确认为 0 行：本机旧账、缓存、待传草稿、我的列表一并作废。
+    任何设备重开都统一显示 0 颗，且不会再把旧草稿补回云端。 */
+ if(!list.length){
+  pending=[];savePending();
+  try{localStorage.removeItem('xz_last_n');localStorage.removeItem(MINEKEY);localStorage.removeItem(CACHEKEY)}catch(e){}
+  lastKnownN=0;emptyStreak=0;retryCount=0;
+  if(retryTimer){clearTimeout(retryTimer);retryTimer=null}
+  wishes=[];lastSig=sigOf([]);pickBatch();markTop();updateCount();
+  document.getElementById('empty').className='on';
+  return;
+ }
  emptyStreak=0;retryCount=0;
  wishes=normalizeNos(list.slice(-CONFIG.capacity));
  lastKnownN=wishes.length;lastSig=sigOf(wishes);pickBatch();markTop();
